@@ -1,0 +1,12 @@
+{
+"users": [
+{"handle":"abbie","email":"abbie@example.com","password":"pass123"},
+{"handle":"sam","email":"sam@example.com","password":"pass123"}
+],
+"friend_requests": [
+{"from":"abbie","to":"sam"}
+],
+"posts": [
+{"author":"abbie","body":"hello, world!"}
+]
+}
