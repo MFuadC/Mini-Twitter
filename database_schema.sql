@@ -3,6 +3,7 @@ DROP VIEW IF EXISTS feed_posts;
 DROP TABLE IF EXISTS follows;
 DROP TABLE IF EXISTS posts;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS blacks;
 
 -- Users
 CREATE TABLE users (
@@ -25,6 +26,17 @@ CREATE TABLE follows (
     FOREIGN KEY (followee_usr) REFERENCES users(usr) ON DELETE CASCADE
 );
 
+-- Blocks
+CREATE TABLE blocks (
+    blocker_usr  TEXT NOT NULL,
+    blocked_usr  TEXT NOT NULL,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (blocker_usr, blocked_usr),
+    CHECK (blocker_usr <> blocked_usr),
+    FOREIGN KEY (blocker_usr) REFERENCES users(usr) ON DELETE CASCADE,
+    FOREIGN KEY (blocked_usr) REFERENCES users(usr) ON DELETE CASCADE
+);
+
 -- Posts
 CREATE TABLE posts (
     id           INTEGER PRIMARY KEY,
@@ -37,4 +49,6 @@ CREATE TABLE posts (
 -- Helpful indexes
 CREATE INDEX idx_follows_follower ON follows(follower_usr);
 CREATE INDEX idx_follows_followee ON follows(followee_usr);
+CREATE INDEX idx_blocks_blocker ON blocks(blocker_usr);
+CREATE INDEX idx_blocks_blocked ON blocks(blocked_usr);
 CREATE INDEX idx_posts_author_created ON posts(author_usr, created_at DESC);
