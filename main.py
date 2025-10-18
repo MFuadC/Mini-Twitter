@@ -131,7 +131,7 @@ def show_auth_page():
                     (usr, name, email, phone, pwd),
                 )
                 st.session_state.user = usr.strip()
-                st.success("✅ Sign-up successful! You can now log in.")
+                st.rerun()
 
 
 # ********************
@@ -385,9 +385,9 @@ def show_followers():
                 st.rerun()
 
 
-# -------------------------------------------------------------------
+# ***********
 # APP ROUTER
-# -------------------------------------------------------------------
+# ***********
 if st.session_state.user:
     user_menu()
 else:

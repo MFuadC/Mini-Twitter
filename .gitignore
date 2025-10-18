@@ -8,3 +8,23 @@ __pycache__/
 
 # Local DB (do not commit)
 database.db
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Local DB (do not commit)
+database.db
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Local DB (do not commit)
+database.db
