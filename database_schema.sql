@@ -3,7 +3,7 @@ DROP VIEW IF EXISTS feed_posts;
 DROP TABLE IF EXISTS follows;
 DROP TABLE IF EXISTS posts;
 DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS blacks;
+DROP TABLE IF EXISTS blocks;
 
 -- Users
 CREATE TABLE users (
@@ -11,7 +11,7 @@ CREATE TABLE users (
     name        TEXT NOT NULL,
     email       TEXT NOT NULL UNIQUE,
     phone       TEXT,
-    pwd         TEXT NOT NULL,
+    pwd_hash    TEXT NOT NULL,
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

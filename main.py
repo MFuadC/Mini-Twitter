@@ -1,5 +1,5 @@
 """
-Project: Mini_Twitter (Streamlit App with SQL Backend)
+Project: Relational Microblogging & Analytics Platform (Streamlit App with SQL Backend)
 Author: Muhtasim Fuad Chowdhury
 """
 
@@ -10,57 +10,62 @@ import re
 from datetime import datetime
 from contextlib import closing
 from pathlib import Path
+import bcrypt
 
-
+# ************
 # Connect SQL
+# ************
 def connect():
     return sqlite3.connect("database.db", check_same_thread=False)
-
 
 def run_query(sql_query, params=()):
     with closing(connect()) as conn:
         return pd.read_sql_query(sql_query, conn, params=params)
-
 
 def run_exec(sql_query, params=()):
     with closing(connect()) as conn:
         conn.execute(sql_query, params)
         conn.commit()
 
+
+# *******
 # Checks
+# *******
 def user_exists(usr: str) -> bool:
     with closing(connect()) as conn:
         return conn.execute("SELECT 1 FROM users WHERE usr = ?", (usr,)).fetchone() is not None
-
 
 def email_exists(email: str) -> bool:
     with closing(connect()) as conn:
         return conn.execute("SELECT 1 FROM users WHERE email = ?", (email,)).fetchone() is not None
 
+def hash_pwd(pwd: str) -> str:
+    hashed = bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt())
+    return hashed.decode("utf-8")
+
+def verify_pwd(pwd: str, hashed: str) -> bool:
+    return bcrypt.checkpw(pwd.encode("utf-8"), hashed.encode("utf-8"))
 
 def check_credentials(usr: str, pwd: str) -> bool:
     with closing(connect()) as conn:
-        return conn.execute("SELECT 1 FROM users WHERE usr = ? AND pwd = ?", (usr, pwd)).fetchone() is not None
-
+        row = conn.execute("SELECT pwd_hash FROM users WHERE usr = ?", (usr,)).fetchone()
+        if row is None:
+            return False
+        return verify_pwd(pwd, row[0])
 
 def follow_exists(follower, followee) -> bool:
     with closing(connect()) as conn:
-        return conn.execute(
-            "SELECT 1 FROM follows WHERE follower_usr = ? AND followee_usr = ?",
-            (follower, followee),
-        ).fetchone() is not None
+        return conn.execute("SELECT 1 FROM follows WHERE follower_usr = ? AND followee_usr = ?", (follower, followee),).fetchone() is not None
 
 def blocked_exists(blocker: str, blocked: str) -> bool:
     with closing(connect()) as conn:
-        return conn.execute(
-            "SELECT 1 FROM blocks WHERE blocker_usr = ? AND blocked_usr = ?",
-            (blocker, blocked),
-        ).fetchone() is not None
+        return conn.execute("SELECT 1 FROM blocks WHERE blocker_usr = ? AND blocked_usr = ?", (blocker, blocked),).fetchone() is not None
 
-
+# ******
 # Title
-st.set_page_config(page_title="Fuad's Mini Twitter", layout="wide")
-st.title("🎩 Fuad’s Mini Twitter")
+# ******
+st.set_page_config(page_title="Fuad's MAP", layout="wide")
+st.title("🎩 Fuad’s Microblogging & Analytics Platform")
 
 if "user" not in st.session_state:
     st.session_state.user = None # Manage user session
@@ -68,13 +73,12 @@ if "user" not in st.session_state:
 if "confirm_logout" not in st.session_state:
     st.session_state.confirm_logout = False # Manage logout
 
-# **************************
-# First Page Configurations
-# **************************
 
-# Sign in/Sign up page
+# *********************
+# Sign In/Sign Up Page
+# *********************
 def show_auth_page():
-    st.subheader("Welcome!👋 Sign in or create an account below.⬇️")
+    st.subheader("Welcome! Sign in or create an account below.")
 
     tab1, tab2 = st.tabs(["🔒 Sign in", "🆕 Sign up"])
 
@@ -126,9 +130,10 @@ def show_auth_page():
                 st.error("User ID already taken. Please choose another one.")
 
             else:
+                pwd_hash = hash_pwd(pwd)
                 run_exec(
-                    "INSERT INTO users (usr, name, email, phone, pwd) VALUES (?, ?, ?, ?, ?)",
-                    (usr, name, email, phone, pwd),
+                    "INSERT INTO users (usr, name, email, phone, pwd_hash) VALUES (?, ?, ?, ?, ?)",
+                    (usr, name, email, phone, pwd_hash),
                 )
                 st.session_state.user = usr.strip()
                 st.rerun()
@@ -138,7 +143,7 @@ def show_auth_page():
 # USER DASHBOARD MENU
 # ********************
 def user_menu():
-    st.sidebar.header(f"👤 {st.session_state.user}")
+    st.sidebar.header(f"User: {st.session_state.user}")
     st.sidebar.markdown("---")
 
     option = st.sidebar.radio(
@@ -148,7 +153,8 @@ def user_menu():
             "Compose Post",
             "All Users",
             "Following List",
-            "Followers List"
+            "Followers List",
+            "App Analysis"
         ],
         key='nav_choice'
     )
@@ -163,6 +169,8 @@ def user_menu():
         show_following()
     elif option == "Followers List":
         show_followers()
+    elif option == "App Analysis":
+        show_analysis()
 
     st.sidebar.markdown("---")
 
@@ -188,10 +196,24 @@ def user_menu():
 # Home / Feed
 # ************
 def show_feed():
-    st.subheader("🗞️ Your Feed")
+    st.subheader("Your Feed")
 
     st.markdown("---")
 
+    # Display User Analytics KPIs
+    col1, col2, col3 = st.columns(3)
+
+    user_posts = run_query("SELECT COUNT(*) AS count FROM posts WHERE author_usr = ?", (st.session_state.user,))["count"][0]
+    user_following = run_query("SELECT COUNT(*) AS count FROM follows WHERE follower_usr = ?", (st.session_state.user,))["count"][0]
+    user_followers = run_query("SELECT COUNT(*) AS count FROM follows WHERE followee_usr = ?", (st.session_state.user,))["count"][0]
+
+    col1.metric("My Posts", user_posts)
+    col2.metric("Following", user_following)
+    col3.metric("Followers", user_followers)
+
+    st.markdown("---")
+
+    # Display Followers Posts
     sql_query = """
         SELECT p.author_usr, u.name, p.content, p.created_at
         FROM posts p
@@ -217,7 +239,14 @@ def show_feed():
     else:
         for _, row in posts.iterrows():
             st.markdown(
-                f"**{row['name']} (@{row['author_usr']})  |  {row['created_at']}**\n\n{row["content"]}"
+                f"""
+                <div class="post-card">
+                    <strong>{row['name']} (@{row['author_usr']})</strong><br>
+                    <small>{row['created_at']}</small>
+                    <p>{row['content']}</p>
+                </div>
+                """,
+                unsafe_allow_html=True
             )
             st.markdown("---")
 
@@ -226,7 +255,7 @@ def show_feed():
 # COMPOSE POST
 # *************
 def post():
-    st.subheader("✏️ Compose a new post")
+    st.subheader("Compose a new post")
     content = st.text_area("Write your post (max 360 characters)", max_chars=360)
 
     if st.button("Post"):
@@ -239,12 +268,67 @@ def post():
             )
             st.success("Posted! Your followers will see it in their feed.")
 
+    # Engagement: Top 5 Most Active Users of the App
+    st.markdown("### Top 5 Most Active Users")
+
+    top_users = run_query("""
+        SELECT u.usr, COUNT(p.id) AS post_count
+        FROM users u
+        LEFT JOIN posts p ON p.author_usr = u.usr
+        GROUP BY u.usr
+        ORDER BY post_count DESC
+        LIMIT 5
+    """)
+
+    st.dataframe(top_users, hide_index=True, use_container_width=True)
+
+    st.markdown("---")
+    st.markdown("### My Posts")
+
+    my_posts = run_query(
+        """
+        SELECT id, content, created_at
+        FROM posts
+        WHERE author_usr = ?
+        ORDER BY datetime(created_at) DESC
+        """,
+        (st.session_state.user,)
+    )
+
+    if my_posts.empty:
+        st.info("You haven't posted anything yet.")
+    else:
+        for _, row in my_posts.iterrows():
+            st.markdown(
+                f"""
+                <div class="post-card">
+                    <small>{row['created_at']}</small>
+                    <p>{row['content']}</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # Delete button (unique per post)
+            if st.button("Delete", key=f"delete_post_{row['id']}"):
+                run_exec(
+                    """
+                    DELETE FROM posts
+                    WHERE id = ? AND author_usr = ?
+                    """,
+                    (row["id"], st.session_state.user),
+                )
+                st.success("Post deleted.")
+                st.rerun()
+
+            st.markdown("---")
+
 
 # **********
 # ALL USERS
 # **********
 def show_all_users():
-    st.subheader("🎭 All Users")
+    st.subheader("All Users")
 
     df = run_query("SELECT usr, name, email FROM users ORDER BY LOWER(name), email")
 
@@ -258,7 +342,7 @@ def show_all_users():
     )
 
     # Follow a user
-    st.markdown("### 👤 Follow a user")
+    st.markdown("### Follow a user")
     follow_target = st.text_input("Enter User ID to follow")
 
     if st.button("Follow"):
@@ -271,7 +355,7 @@ def show_all_users():
         elif blocked_exists(follow_target, st.session_state.user):
             st.error("You are blocked by this user.")
         elif blocked_exists(st.session_state.user, follow_target):
-            st.error("You have blocked this user. Unblock them before following.")
+            st.error("You have blocked this user. Unblock them if you want to follow the user.")
         else:
             run_exec(
                 "INSERT INTO follows (follower_usr, followee_usr, created_at) VALUES (?, ?, datetime('now'))",
@@ -284,7 +368,7 @@ def show_all_users():
 # FOLLOWING LIST
 # ***************
 def show_following():
-    st.subheader("👥 Your Following")
+    st.subheader("Your Following")
 
     sql_query = """
         SELECT u.usr, u.name, u.email
@@ -305,7 +389,7 @@ def show_following():
     )
 
     # Unfollow a user
-    st.markdown("### 👎 Unfollow a user")
+    st.markdown("### Unfollow a user")
     unfollow_target = st.text_input("Enter User ID to unfollow")
 
     if st.button("Unfollow"):
@@ -327,11 +411,11 @@ def show_following():
             st.rerun()
 
 
-# ***************
+# **************
 # FOLLOWER LIST
-# ***************
+# **************
 def show_followers():
-    st.subheader("👥 Your Followers")
+    st.subheader("Your Followers")
 
     sql_query = """
         SELECT u.usr, u.name, u.email
@@ -344,7 +428,7 @@ def show_followers():
     df = run_query(sql_query, (st.session_state.user,))
 
     if df.empty:
-        st.info("You have now followers yet.")
+        st.info("You have no followers yet.")
         return
 
     st.dataframe(df.rename(columns={"usr": "User ID", "name": "Name", "email": "Email"}),
@@ -353,7 +437,7 @@ def show_followers():
     )
 
     # Block a follower
-    st.markdown("### ❌👤 Block a follower")
+    st.markdown("### Block a follower")
     block_target = st.text_input("Enter follower User ID to block")
 
     if st.button("Block"):
@@ -363,7 +447,7 @@ def show_followers():
         elif target == st.session_state.user:
             st.error("You cannot block yourself.")
         elif not user_exists(target):
-            st.error("User does not exist.")
+            st.error("User does not exist. (This is case-sensitive. Please enter exact User ID.)")
         else:
             # Ensure they are actually your follower
             is_follower = run_query(
@@ -385,6 +469,85 @@ def show_followers():
                 st.rerun()
 
 
+# *************
+# App Analysis
+# *************
+def show_analysis():
+    st.subheader("App Analysis")
+
+    col1, col2, col3 = st.columns(3)
+
+    # App Analytics KPI metrics
+    total_users = run_query("SELECT COUNT(*) AS count FROM users")["count"][0]
+    total_posts = run_query("SELECT COUNT(*) AS count FROM posts")["count"][0]
+    total_follows = run_query("SELECT COUNT(*) AS count FROM follows")["count"][0]
+
+    col1.metric("Total Users", total_users)
+    col2.metric("Total Posts", total_posts)
+    col3.metric("Total Follows", total_follows)
+
+    st.markdown("---")
+
+    # Engagement: Followers per User
+    st.markdown("### Followers per User")
+
+    followers_df = run_query("""
+        SELECT u.usr, COUNT(f.follower_usr) AS followers
+        FROM users u
+        LEFT JOIN follows f ON f.followee_usr = u.usr
+        GROUP BY u.usr
+        ORDER BY followers DESC
+    """)
+
+    st.bar_chart(
+        followers_df.set_index("usr")
+    )
+
+    st.markdown("---")
+
+    # Time-series: Posts over time (per minute)
+    st.markdown("### Posts Over Time")
+
+    posts_over_time = run_query("""
+        SELECT 
+            strftime('%Y-%m-%d %H:%M', created_at) AS time,
+            COUNT(*) AS post_count
+        FROM posts
+        WHERE created_at IS NOT NULL 
+            AND created_at >= datetime('now', '-60 minutes')
+        GROUP BY time
+        ORDER BY time;
+    """)
+
+    if posts_over_time.empty:
+        st.info("Not enough data to display post activity over time.")
+    else:
+        posts_over_time["time"] = pd.to_datetime(posts_over_time["time"], errors="coerce")
+
+        posts_over_time = posts_over_time.dropna()
+        
+        st.line_chart(posts_over_time.set_index("time"))
+
+    # I use minute-level aggregation for demos and day-level aggregation for long-term trend analysis
+    # Time-series: Posts over time (per day)
+    # st.markdown("### Posts Over Time") 
+    # posts_over_time = run_query(""" 
+    #     SELECT 
+    #         date(created_at) AS post_date, 
+    #         COUNT(*) AS post_count 
+    #     FROM posts 
+    #     GROUP BY date(created_at) 
+    #     ORDER BY post_date 
+    # """) 
+    
+    # if posts_over_time.empty: 
+    #     st.info("Not enough data to display post activity over time.") 
+    # else: 
+    #     posts_over_time["post_date"] = pd.to_datetime(posts_over_time["post_date"]) 
+        
+    # st.line_chart(posts_over_time.set_index("post_date"))
+
+
 # ***********
 # APP ROUTER
 # ***********
@@ -392,5 +555,3 @@ if st.session_state.user:
     user_menu()
 else:
     show_auth_page()
-
-

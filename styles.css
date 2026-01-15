@@ -1,0 +1,53 @@
+/* Global */
+html, body, [class*="css"] {
+    font-family: "Inter", "Segoe UI", sans-serif;
+}
+
+.main {
+    background-color: #f9fafb;
+    padding: 1.5rem;
+}
+
+/* Headers */
+h1, h2, h3 {
+    color: #111827;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #111827;
+}
+
+section[data-testid="stSidebar"] * {
+    color: #f9fafb;
+}
+
+section[data-testid="stSidebar"] label {
+    font-size: 0.95rem;
+}
+
+/* Buttons */
+button[kind="primary"] {
+    background-color: #2563eb;
+    color: white;
+    border-radius: 8px;
+    padding: 0.4rem 0.8rem;
+}
+
+button[kind="primary"]:hover {
+    background-color: #1d4ed8;
+}
+
+/* Inputs */
+input, textarea {
+    border-radius: 6px !important;
+}
+
+/* Posts */
+.post-card {
+    background-color: white;
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
