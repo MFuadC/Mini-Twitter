@@ -15,6 +15,15 @@ import bcrypt
 # ************
 # Connect SQL
 # ************
+# For reproducibility (Deploying App)
+def init_db():
+    db_path = Path("database.db")
+
+    if not db_path.exists():
+        with sqlite3.connect(db_path) as conn:
+            with open("database_schema.sql", "r") as f:
+                conn.executescript(f.read())
+
 def connect():
     return sqlite3.connect("database.db", check_same_thread=False)
 
@@ -66,6 +75,7 @@ def blocked_exists(blocker: str, blocked: str) -> bool:
 # ******
 st.set_page_config(page_title="Fuad's MAP", layout="wide")
 st.title("🎩 Fuad’s Microblogging & Analytics Platform")
+init_db()
 
 if "user" not in st.session_state:
     st.session_state.user = None # Manage user session
